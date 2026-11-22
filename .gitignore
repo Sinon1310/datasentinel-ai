@@ -1,7 +1,11 @@
 # Virtual environments
 .venv/
+.venv*/
 venv/
 env/
+
+# Local run data: persisted datasets, checkpoints, audit logs (may contain user data)
+.datasentinel/
 
 # Secrets — never commit
 .env

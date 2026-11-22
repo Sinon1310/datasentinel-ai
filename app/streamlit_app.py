@@ -29,7 +29,8 @@ from datasentinel.ingestion import DatasetLoader  # noqa: E402
 from datasentinel.logging_config import configure_logging  # noqa: E402
 from datasentinel.pipeline import AnalysisResult, analyze_dataset  # noqa: E402
 from datasentinel.quality import QualityConfig  # noqa: E402
-from datasentinel.schema import SchemaContract  # noqa: E402
+from datasentinel.schema.drift import load_baseline  # noqa: E402
+from app.components.investigation import render_investigation  # noqa: E402
 
 SAMPLES = {
     "Customer orders (CSV)": ROOT / "sample_data" / "customer_orders.csv",
@@ -48,7 +49,8 @@ def run_analysis(
     max_null_pct: float,
 ) -> AnalysisResult:
     """Ingest and analyse a dataset. Cached on file content and settings."""
-    contract = SchemaContract.from_json(contract_json) if contract_json else None
+    # Accepts a schema contract or a previously exported schema report JSON.
+    contract = load_baseline(contract_json)[0] if contract_json else None
     config = QualityConfig(iqr_multiplier=iqr_multiplier, max_null_pct=max_null_pct)
     dataset = DatasetLoader().load_bytes(data, filename)
     return analyze_dataset(dataset, contract=contract, quality_config=config)
@@ -66,9 +68,11 @@ def sidebar() -> Tuple[Optional[Tuple[bytes, str]], Optional[str], float, float]
         )
         sample = st.selectbox("…or use a sample dataset", ["—", *SAMPLES], key="sample_choice")
 
-        st.markdown("### 📐 Schema contract")
-        contract_file = st.file_uploader("Expected schema (JSON, optional)", type=["json"], key="contract",
-                                         help="Download one from the Schema Explorer tab, edit it, and upload it here.")
+        st.markdown("### 📐 Schema baseline")
+        contract_file = st.file_uploader("Schema contract or exported schema (JSON, optional)", type=["json"],
+                                         key="contract",
+                                         help="Download a contract or schema report from the Schema Explorer tab, "
+                                              "edit it if needed, and upload it to validate and detect drift.")
 
         st.markdown("### ⚙️ Quality settings")
         iqr = st.slider("IQR multiplier (outlier fence)", 1.0, 3.0, 1.5, 0.1)
@@ -102,6 +106,8 @@ def main() -> None:
     file, contract_json, iqr, null_tol = sidebar()
     if file is None:
         sections.render_welcome()
+        with st.expander("🤖 AI investigation runs (resume or review previous runs)"):
+            render_investigation(None, contract_json, iqr, null_tol)
         return
 
     data, filename = file
@@ -131,6 +137,7 @@ def main() -> None:
         f"Data Quality ({sections.failed_count(result)} issues)",
         "Profiling",
         "Data Preview",
+        "🤖 AI Investigation",
     ])
     with tabs[0]:
         sections.render_overview(result)
@@ -142,6 +149,8 @@ def main() -> None:
         sections.render_profiling(result)
     with tabs[4]:
         sections.render_preview(result)
+    with tabs[5]:
+        render_investigation(file, contract_json, iqr, null_tol)
 
 
 main()

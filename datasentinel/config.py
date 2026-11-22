@@ -8,10 +8,13 @@ key are *never* hardcoded; they are read from the environment and wrapped in
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Optional, Tuple
 
-from pydantic import AliasChoices, Field, SecretStr
+from pydantic import AliasChoices, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b"
 
 
 class Settings(BaseSettings):
@@ -33,12 +36,27 @@ class Settings(BaseSettings):
     max_upload_size_mb: float = Field(default=200.0, gt=0, description="Maximum accepted upload size.")
     allowed_extensions: Tuple[str, ...] = (".csv", ".json", ".jsonl", ".ndjson")
 
-    # Reserved for Milestone 2 (LLM reasoning). Read from GROQ_API_KEY or DATASENTINEL_GROQ_API_KEY.
+    # LLM provider (Milestone 2). Read from GROQ_API_KEY or DATASENTINEL_GROQ_API_KEY.
     groq_api_key: Optional[SecretStr] = Field(
         default=None,
         validation_alias=AliasChoices("GROQ_API_KEY", "DATASENTINEL_GROQ_API_KEY"),
     )
-    groq_model: str = "llama-3.3-70b-versatile"
+    # Must support tool calling. GROQ_MODEL takes precedence over the legacy DATASENTINEL_GROQ_MODEL.
+    groq_model: str = Field(
+        default=DEFAULT_GROQ_MODEL,
+        validation_alias=AliasChoices("GROQ_MODEL", "DATASENTINEL_GROQ_MODEL"),
+    )
+
+    # Local persistence for investigation runs (datasets, checkpoints, audit logs).
+    data_dir: Path = Path(".datasentinel")
+
+    @field_validator("groq_model", mode="before")
+    @classmethod
+    def _blank_model_uses_default(cls, value: object) -> object:
+        """Treat ``GROQ_MODEL=`` (blank) as unset rather than sending an empty model name."""
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return DEFAULT_GROQ_MODEL
+        return value.strip() if isinstance(value, str) else value
 
     @property
     def max_upload_size_bytes(self) -> int:

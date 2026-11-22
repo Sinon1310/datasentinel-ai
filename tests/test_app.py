@@ -25,4 +25,4 @@ def test_sample_dataset_renders_all_tabs(sample: str) -> None:
     assert not at.error
     labels = [m.label for m in at.metric]
     assert "Quality score" in labels and "Rows" in labels
-    assert len(at.tabs) == 5
+    assert len(at.tabs) == 6  # Overview, Schema, Quality, Profiling, Preview, AI Investigation

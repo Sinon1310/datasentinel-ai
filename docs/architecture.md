@@ -3,6 +3,10 @@
 This document describes the architecture of the **Data Intelligence Engine** as implemented in
 Milestone 1. It covers what exists today. Planned components are labelled as such.
 
+Milestone 2 added deterministic modules to this engine (`schema/drift.py`, `investigation/`, `remediation/`)
+and a separate LLM layer, `datasentinel_agents/`. Both are documented in [agents.md](agents.md). The engine still
+imports no LLM or UI code, and `tests/test_architecture.py` enforces this. Target runtime: Python 3.12.
+
 ## 1. Goals and principles
 
 | Principle | How it is enforced |
@@ -206,14 +210,13 @@ overall score.
 - Excel, Parquet and UTF-16 files are not supported.
 - Composite keys are limited to pairs.
 - Dates after 2262 (pandas' nanosecond bound) are reported as unparseable.
-- Results are not persisted.
+- Deterministic analysis results are not persisted. Investigation runs are, see [agents.md](agents.md).
 
-## 8. Planned evolution (not implemented)
+## 8. Evolution
 
-- **Milestone 2:** LangGraph agents using Groq-hosted Llama models. They call `analyze_dataset` as a
-  tool and reason over its JSON output (issue explanation, remediation suggestions).
-- **Later:**
-  - a FastAPI service exposing the pipeline
-  - SQLite for run history
+- **Milestone 2 (implemented):** multi-agent investigation. See [agents.md](agents.md).
+- **Later (not implemented):**
+  - a FastAPI service exposing the pipeline and `InvestigationService`
+  - schema history in SQLite
   - ChromaDB for retrieval
-  - DuckDB / PySpark backends for datasets larger than memory
+  - PySpark execution and backends for datasets larger than memory

@@ -7,27 +7,26 @@ every change is expected to follow, and how changes are tested.
 
 ```bash
 git clone <repository-url> && cd datasentinel-ai
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env          # never commit .env
-python -m pytest              # confirm a green baseline before you start
+python3.12 -m venv .venv && source .venv/bin/activate
+pip install -r requirements-lock.txt   # exact, verified versions (requirements.txt holds the floors)
+cp .env.example .env                   # never commit .env
+python -m pytest                       # confirm a green baseline before you start (no API key needed)
 ```
 
-Target Python 3.11+. Until the minimum version is formally raised, code must stay compatible with
-**Python 3.9**:
+The project targets **Python 3.12** (3.11+ supported). Modern syntax (`X | None`, built-in generics) is
+fine. Keep `from __future__ import annotations` at the top of modules for consistency.
 
-- Start every module with `from __future__ import annotations`.
-- Use `Optional[X]` / `Union[X, Y]` in any annotation evaluated at runtime (pydantic models, dataclass
-  field defaults). Don't use `X | Y` there.
-- No `match` statements, `StrEnum`, `kw_only` or `slots` dataclass options.
+If you change dependencies, update `requirements.txt`, `pyproject.toml` **and** regenerate
+`requirements-lock.txt` from a verified environment (`pip freeze`).
 
 ## Architecture rules
 
 Read [docs/architecture.md](docs/architecture.md) first. The rules that matter most:
 
 1. **Deterministic computation stays separate from LLM reasoning.** Nothing in `datasentinel/`
-   may call an LLM. Agents (Milestone 2+) consume engine output; they never compute or override
-   scores, statistics or rule results.
+   may import LangChain, LangGraph, Groq, `datasentinel_agents` or Streamlit (`tests/test_architecture.py`
+   enforces this). Agents in `datasentinel_agents/` consume engine output through read-only tools. They never
+   compute or override scores, statistics or rule results.
 2. **The engine never imports the UI.** `datasentinel/` must not import `streamlit` or anything in `app/`.
    The UI calls `datasentinel.pipeline.analyze_dataset` and only renders the result.
 3. **One responsibility per module.** Ingestion, schema, profiling and quality each live in their own
@@ -54,6 +53,27 @@ Read [docs/architecture.md](docs/architecture.md) first. The rules that matter m
   variables to `.env.example` with an empty value.
 - **No mock outputs.** If a feature can be really implemented, implement it. Don't return placeholder data.
 - Keep functions small and names descriptive. Prefer clarity over cleverness.
+
+## Agent layer conventions (`datasentinel_agents/`)
+
+Read [docs/agents.md](docs/agents.md) first.
+
+- **LLMs propose, code decides.** Routing, grounding, validation, approval and execution are
+  deterministic nodes. Never let LLM output select control flow directly or reach execution unvalidated.
+- **Tools are read-only adapters.** Add a tool to `tools/library.py` with a Pydantic argument schema,
+  register it in `tools/registry.py`, and grant it only to the agents that need it. Tools must return
+  privacy-filtered output: pass dataset values through `PrivacyGuard` and column names through `safe_identifier`.
+- **Evidence or it didn't happen.** Tool results are recorded automatically. Any new claim field that
+  carries a number or a "confirmed" status must be covered by `grounding.py`.
+- **Never execute generated code.** No `exec`/`eval`/`compile` (enforced by a test). Generated SQL only runs
+  through `execute_approved_fixes` after approval, and PySpark is never run.
+- **Checkpointed state must stay valid.** Models stored in graph state must satisfy their own validation after
+  grounding. Put submission-only rules behind the `SUBMISSION_CONTEXT` validator. Add new state models to
+  `CHECKPOINT_MODELS` (the deserialisation allow-list).
+- **Prompts are versioned files** in `prompts/`. Keep the shared security rules in `common.md`.
+- **Tests use the scripted fake LLM** (`tests/agents/fakes.py`). Every agent change needs tests covering the
+  happy path, invalid submissions and grounding. Live Groq tests are opt-in (`-m live`) and must never be
+  required for CI.
 
 ## Adding a quality rule
 

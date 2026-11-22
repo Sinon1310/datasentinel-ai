@@ -1,198 +1,317 @@
 # DataSentinel AI
 
-**Agentic AI Data Engineering and Pipeline Observability Platform.**
+### Agentic AI for Data Quality, Root-Cause Analysis & Pipeline Observability
+
+**Turn data quality issues into explainable investigations and safely validated remediation.**
+
+DataSentinel AI is an intelligent data observability platform that combines deterministic data engineering with multi-agent AI to profile datasets, detect quality issues, investigate root causes, and recommend SQL/PySpark remediation through a human-in-the-loop workflow.
+
+Instead of simply reporting that a dataset is broken, DataSentinel aims to explain **what went wrong, why it happened, and how it can be fixed safely.**
+
+---
 
 ## Overview
 
-DataSentinel AI helps data teams understand and trust their datasets before those datasets
-enter a pipeline. Its core rule is a strict separation of responsibilities: **deterministic code
-computes the facts** (schema, statistics, rule violations, scores), and, from Milestone 2,
-**LLM agents reason over those facts** to explain issues and recommend fixes. Agents never
-compute the numbers themselves.
+Modern data pipelines process large volumes of information, but maintaining data quality remains a challenge. Missing values, duplicate records, schema changes, invalid formats and anomalous values can silently affect downstream analytics.
 
-Milestone 1 delivers the **Data Intelligence Engine**: validated dataset ingestion, schema
-inference, statistical profiling, a deterministic data quality engine with a transparent
-score, and a Streamlit dashboard on top.
+Traditional data quality tools identify problems. DataSentinel AI takes the investigation further.
 
-| Milestone | Scope | Status |
-|---|---|---|
-| 1 | Data Intelligence Engine: ingestion, schema, profiling, quality, dashboard | ✅ Complete |
-| 2 | LangGraph agents (Groq / Llama) reasoning over engine output | Planned |
+It combines a deterministic data quality engine with a LangGraph-powered multi-agent investigation system to transform data quality findings into actionable insights.
 
-## Technology stack
+### What makes DataSentinel different?
 
-| Layer | Technology | Used in Milestone 1 |
-|---|---|---|
-| Language | Python (3.11+ target; code is 3.9+ compatible) | ✅ |
-| Data processing | pandas, NumPy | ✅ |
-| Configuration | pydantic, pydantic-settings, python-dotenv | ✅ |
-| Dashboard | Streamlit, Plotly | ✅ |
-| Testing | pytest, `streamlit.testing` | ✅ |
-| Agents and LLM | LangChain, LangGraph, Groq (Llama models) | Planned |
-| API | FastAPI, Uvicorn | Planned |
-| Scale-out processing | DuckDB, PySpark | Planned |
-| Storage and retrieval | SQLite, ChromaDB | Planned |
-
-See [docs/architecture.md](docs/architecture.md) for the detailed architecture and
-[CONTRIBUTING.md](CONTRIBUTING.md) for development conventions.
+- **Deterministic first:** Data profiling, quality checks and scoring are computed by Python-based engineering logic, not guessed by an LLM.
+- **Agentic investigation:** Specialized AI agents investigate data issues and identify potential root causes.
+- **Evidence-grounded reasoning:** Agent findings are checked against an evidence ledger.
+- **Safe remediation:** SQL recommendations are validated before execution.
+- **Human oversight:** Proposed fixes require explicit approval.
+- **Traceability:** Investigation runs, execution events and remediation artifacts are recorded.
 
 ---
 
-## Quick start
+## Core Features
+
+| Capability               | Description                                                                           |
+| ------------------------ | ------------------------------------------------------------------------------------- |
+| Data Ingestion           | Load CSV, JSON and JSONL datasets                                                     |
+| Schema Intelligence      | Infer data types, identify potential keys and generate schema contracts               |
+| Data Profiling           | Analyze distributions, nulls, duplicates, cardinality and statistical characteristics |
+| Data Quality Engine      | Detect missing values, duplicates, invalid types, invalid dates and outliers          |
+| Quality Scoring          | Calculate explainable quality scores and dimension-level assessments                  |
+| Schema Drift Detection   | Compare incoming schemas against established baselines                                |
+| AI Investigation         | Use specialized agents to investigate quality findings                                |
+| Root-Cause Analysis      | Generate evidence-supported explanations of data issues                               |
+| Remediation Intelligence | Propose SQL and PySpark remediation strategies                                        |
+| SQL Validation           | Validate SQL against safety policies before execution                                 |
+| Human Approval           | Require explicit approval before executing proposed fixes                             |
+| Execution Verification   | Re-evaluate data quality after remediation                                            |
+| Audit Logging            | Track investigation and remediation events                                            |
+
+---
+
+## System Architecture
+
+DataSentinel follows a layered architecture that separates deterministic data engineering from AI orchestration.
+
+```mermaid
+flowchart TB
+    A["Input Dataset<br/>CSV / JSON / JSONL"] --> B["Data Ingestion Layer"]
+    B --> C["Schema Intelligence"]
+    C --> D["Data Profiling Engine"]
+    D --> E["Data Quality Engine"]
+    E --> F["Quality Digest & Evidence Ledger"]
+
+    F --> G["LangGraph Orchestration"]
+
+    G --> H["Data Investigator"]
+    G --> I["Schema Analyst"]
+
+    H --> J["Grounding & Validation"]
+    I --> J
+
+    J --> K["Root Cause Analyst"]
+    K --> L["Remediation Agent"]
+
+    L --> M["SQL / PySpark Suggestions"]
+    M --> N["Safety Validation"]
+
+    N --> O{"Human Approval"}
+
+    O -->|Approved| P["Controlled SQL Execution"]
+    O -->|Rejected| Q["Record Decision"]
+
+    P --> R["Post-Execution Verification"]
+    R --> S["Investigation Report"]
+
+    Q --> S
+```
+
+### Architectural Principle
+
+The platform maintains a strict separation of responsibilities:
+
+**Deterministic Engine**
+
+- Calculates quality scores.
+- Detects data quality violations.
+- Generates evidence.
+- Validates SQL safety.
+- Verifies remediation results.
+
+**AI Agent Layer**
+
+- Interprets deterministic findings.
+- Investigates possible root causes.
+- Analyzes schema-related issues.
+- Recommends remediation strategies.
+- Produces structured investigation reports.
+
+The LLM does not determine actual quality scores or independently establish whether a remediation succeeded.
+
+---
+
+## Multi-Agent Investigation Workflow
+
+DataSentinel uses LangGraph to orchestrate specialized agents through a controlled investigation workflow.
+
+| Agent              | Responsibility                                                 |
+| ------------------ | -------------------------------------------------------------- |
+| Data Investigator  | Investigates data quality violations and their characteristics |
+| Schema Analyst     | Examines schema inconsistencies and drift                      |
+| Root Cause Analyst | Correlates findings and investigates potential causes          |
+| Remediation Agent  | Proposes corrective SQL/PySpark strategies                     |
+
+### Investigation Lifecycle
+
+1. **Prepare Context** — Collect dataset metadata, quality findings and evidence.
+2. **Investigate** — Analyze data quality issues and schema changes.
+3. **Ground Findings** — Validate agent claims against available evidence.
+4. **Identify Root Causes** — Correlate findings and determine likely causes.
+5. **Generate Remediation** — Propose corrective actions.
+6. **Validate Fixes** — Apply safety and policy checks.
+7. **Request Approval** — Pause execution for human review.
+8. **Execute Approved Fixes** — Execute permitted SQL remediation in a controlled environment.
+9. **Verify Results** — Recalculate quality metrics and record outcomes.
+10. **Generate Report** — Produce an investigation summary with traceable findings.
+
+The workflow also supports checkpoints, retries, interruption and resumption.
+
+---
+
+## Safety & Reliability
+
+AI-generated remediation must never be treated as automatically trustworthy.
+
+DataSentinel incorporates multiple safety mechanisms:
+
+- Evidence-ID validation to prevent unsupported claims from being treated as confirmed findings.
+- Engine-controlled severity levels.
+- SQL policy validation and DuckDB sandboxing.
+- Protection against unsafe SQL operations and unauthorized file access.
+- Static safety analysis of generated PySpark code.
+- Explicit human approval before remediation execution.
+- Source-data integrity verification.
+- Approval binding to the validated remediation content.
+- Execution audit events and artifact tracking.
+- Post-execution quality verification.
+
+**Important:** Generated PySpark suggestions are statically inspected and are not executed by the platform.
+
+---
+
+## Technology Stack
+
+| Layer                | Technologies         |
+| -------------------- | -------------------- |
+| Programming Language | Python               |
+| Data Processing      | Pandas, PySpark      |
+| AI Framework         | LangChain            |
+| Agent Orchestration  | LangGraph            |
+| LLM Provider         | Groq                 |
+| SQL Execution        | DuckDB               |
+| Frontend             | Streamlit            |
+| Validation           | Pydantic             |
+| Persistence          | SQLite               |
+| Visualization        | Plotly               |
+| Testing              | Pytest               |
+| Development          | VS Code, Git, GitHub |
+
+---
+
+## Project Structure
+
+```text
+datasentinel-ai/
+│
+├── app/
+│   ├── components/
+│   ├── sections/
+│   └── streamlit_app.py
+│
+├── datasentinel/
+│   ├── ingestion/
+│   ├── schema/
+│   ├── profiling/
+│   ├── quality/
+│   ├── investigation/
+│   ├── remediation/
+│   ├── config.py
+│   └── pipeline.py
+│
+├── datasentinel_agents/
+│   ├── nodes/
+│   ├── runtime/
+│   ├── tools/
+│   ├── service.py
+│   ├── grounding.py
+│   └── models.py
+│
+├── sample_data/
+├── scripts/
+├── docs/
+├── tests/
+│
+├── .env.example
+├── .gitignore
+├── CONTRIBUTING.md
+├── pyproject.toml
+├── requirements-lock.txt
+├── requirements.txt
+└── README.md
+```
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- Python 3.12 recommended
+- Git
+- A Groq API key for live AI investigations
+
+### 1. Clone the repository
 
 ```bash
-# 1. Environment (Python 3.11+ recommended; the code is compatible with 3.9+)
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt  # full stack (Milestone 1 + planned milestones)
-# or, Milestone 1 only:  pip install -e ".[dev]"
-cp .env.example .env             # optional; no keys are needed for Milestone 1
+git clone https://github.com/Sinon1310/datasentinel-ai.git
 
-# 2. Sample data (synthetic and seeded, included in the repo; regenerate any time)
-python scripts/generate_sample_data.py
-
-# 3. Run the dashboard
-streamlit run app/streamlit_app.py      # http://localhost:8501
-
-# 4. Run the tests
-python -m pytest                     # full suite (engine + headless dashboard tests)
-python -m pytest tests/test_quality.py -v   # a single module
+cd datasentinel-ai
 ```
 
-The sample datasets are fully synthetic. They come from `scripts/generate_sample_data.py` with a
-fixed random seed, and all email addresses use the reserved `example.com` domain.
+### 2. Create a virtual environment
 
-Use the engine from Python without the UI:
+```bash
+python3.12 -m venv .venv
 
-```python
-from datasentinel.pipeline import analyze_file
-
-result = analyze_file("sample_data/customer_orders.csv")
-print(result.quality.overall_score, result.quality.grade)
-print(result.quality.results_dataframe().query("status == 'failed'"))
+source .venv/bin/activate
 ```
+
+### 3. Install dependencies
+
+```bash
+python -m pip install --upgrade pip
+
+pip install -r requirements-lock.txt
+```
+
+### 4. Configure environment variables
+
+```bash
+cp .env.example .env
+```
+
+Add your Groq API key and desired model configuration to `.env`, following the variable names in `.env.example`.
+
+Never commit your `.env` file or expose API credentials.
+
+### 5. Launch the application
+
+```bash
+streamlit run app/streamlit_app.py
+```
+
+Open the local Streamlit URL displayed in your terminal.
 
 ---
 
-## Project layout
+## Running Tests
 
-```
-datasentinel/                 # Engine package — no UI, no LLM code
-├── config.py                 # pydantic-settings; env vars prefixed DATASENTINEL_
-├── logging_config.py         # namespaced logger setup
-├── exceptions.py             # DataSentinelError hierarchy
-├── pipeline.py               # ingest → infer → cast → profile → validate
-├── ingestion/                # DatasetLoader (CSV / JSON / JSON Lines) + metadata
-├── schema/                   # SchemaInferrer, SchemaReport, SchemaContract
-├── profiling/                # DataProfiler + profile models
-├── quality/                  # rules, config, scoring, engine, report models
-└── utils/                    # shared parsers and JSON serialisation
-app/                          # Streamlit presentation layer
-├── streamlit_app.py          # entry point (sidebar, caching, error handling, tabs)
-└── components/               # styles, plotly chart builders, page sections
-tests/                        # pytest suite (engine + headless UI smoke tests)
-scripts/generate_sample_data.py
-sample_data/                  # customer_orders.csv, sensor_readings.json
+DataSentinel includes automated tests for its data engineering engine, agent workflow, safety controls and application behavior.
+
+Run the complete offline test suite:
+
+```bash
+pytest -q
 ```
 
----
+Run the live Groq integration test separately:
 
-## Features
+```bash
+python -c "from dotenv import load_dotenv; load_dotenv(override=True); import pytest; raise SystemExit(pytest.main(['-m', 'live', '-v']))"
+```
 
-### A. Ingestion (`datasentinel.ingestion`)
-- CSV, JSON (record arrays, `{"data": [...]}` wrappers, columnar objects, single objects) and JSON Lines.
-- Extension and size validation **before** reading (size limit from `DATASENTINEL_MAX_UPLOAD_SIZE_MB`).
-- Rejects empty, header-only, binary and malformed files with specific exceptions
-  (`UnsupportedFileTypeError`, `FileSizeError`, `EmptyDatasetError`, `DatasetParseError`).
-- Recovers where safe and records a warning: delimiter sniffing (`, ; \t |`), UTF-8/BOM → cp1252 → latin-1
-  fallback, malformed CSV rows skipped, phantom trailing-delimiter columns dropped, nested JSON flattened and
-  list values serialised.
+The live test requires a valid API key and available provider quota.
 
-### B. Schema inference (`datasentinel.schema`)
-- Semantic types: `numeric`, `categorical`, `datetime`, `boolean`, `text`, `empty`, plus a storage type.
-- Typed values hidden in strings are detected by parse-success ratio (default ≥ 90%; ≥ 60% for date-named
-  columns such as `created_at`), so a few dirty values don't flip a column's type. They are reported as
-  invalid instead.
-- Codes with leading zeros (ZIP codes, for example) stay text. Whole-number floats and 0/1 flags get a note.
-- Primary-key candidates with confidence and evidence; composite (two-column) keys when no single column is unique.
-- **Schema contracts**: export the inferred schema as an editable JSON contract, then upload it to validate
-  future loads (types, required, nullable, unique, extra columns).
-
-### C. Profiling (`datasentinel.profiling`)
-- Rows, columns, total and missing cells, duplicate rows, memory footprint.
-- Per column: null count and %, unique count and %, constant and unique flags.
-- Numeric: min, max, mean, median, std, p05/q1/q3/p95, IQR, skewness, kurtosis, zeros, negatives, histogram.
-- Categorical/text: cardinality, top-N frequencies, mode, Shannon entropy (raw and normalised), string lengths.
-- Datetime: range and span. Boolean: true/false counts.
-
-### D. Data quality engine (`datasentinel.quality`)
-
-| Rule id | Dimension | What it checks | Severity bands (affected %) |
-|---|---|---|---|
-| `completeness.missing_values` | completeness | nulls + blank strings per column | ≤5 low · ≤20 medium · ≤50 high · >50 critical |
-| `uniqueness.duplicate_records` | uniqueness | exact duplicate rows | ≤1 low · ≤5 medium · ≤20 high · >20 critical |
-| `validity.data_types` | validity | values that don't parse as the inferred type; mixed JSON types | ≤1 low · ≤5 medium · ≤20 high · >20 critical |
-| `validity.dates` | validity | unparseable or impossible dates (`2024-02-30`), before 1900, more than 5 years ahead | as above |
-| `accuracy.outliers_iqr` | accuracy | Tukey fences (1.5×IQR mild, 3×IQR extreme) | ≤5 low · ≤15 medium · >15 high |
-| `consistency.schema` | consistency | contract validation, or structural checks (empty/constant columns, bad headers, no key) | per sub-check |
-
-Each result carries status (`passed` / `failed` / `skipped`), severity, affected rows and %, threshold,
-evidence `details` and sample offending values. Every threshold lives in `QualityConfig`.
-
-**Scoring (fully reproducible):**
-1. Check score = `100 × (1 − penalty)`, with penalties low 0.25, medium 0.5, high 0.75, critical 1.0. A passed check scores 100 and skipped checks are excluded.
-2. Dimension score = mean of its check scores.
-3. Overall = weighted mean of dimension scores (completeness 25%, uniqueness 20%, validity 25%,
-   consistency 15%, accuracy 15%). Weights are re-normalised over dimensions that had evaluated checks.
-4. Grade: A ≥ 90 · B ≥ 80 · C ≥ 70 · D ≥ 60 · F.
-
-The report stores each dimension's effective weight and contribution. The contributions sum to the overall score.
-
-### E. Dashboard (`app/`)
-- KPIs: quality score, grade, rows, columns, failed checks, missing cells.
-- **Overview**: file metadata, ingestion warnings, missing-value chart, type distribution, severity breakdown, top issues.
-- **Schema Explorer**: primary-key candidates, filterable column schema, schema/contract JSON downloads.
-- **Data Quality**: score breakdown table and methodology, dimension chart, filterable rule results, evidence per failed check, JSON/CSV report downloads.
-- **Profiling**: per-column explorer (histogram with IQR fences, box plot, top values, time trend), correlation heatmap.
-- **Data Preview**: raw vs typed view, filters for rows with missing values or duplicates.
-- Sidebar: upload, bundled samples, schema-contract upload, IQR multiplier and missing-value tolerance.
+**Testing philosophy:** Core application behavior and agent workflow logic should be testable offline using deterministic mock responses. Live LLM calls are reserved for integration validation.
 
 ---
 
-## Architectural decisions
+## Engineering Philosophy
 
-1. **Deterministic engine, separate presentation and (future) reasoning.** `datasentinel/` never imports
-   Streamlit or an LLM. The UI calls `pipeline.analyze_dataset`. In Milestone 2, LangGraph agents will
-   call the same function as a tool and reason over its structured output. They interpret results; they
-   never compute them.
-2. **Raw vs typed frames.** Ingestion keeps the data exactly as delivered. `SchemaInferrer.cast` produces a
-   typed copy where non-conforming values become null. Invalid-value detection is then just
-   *present in raw but null in typed*, so inference and validation can't disagree because they share
-   the same parsers (`utils/parsing.py`).
-3. **Threshold-based inference.** A column that is 99% numbers is numeric with 1% invalid values. It is not
-   treated as text. This is what makes "invalid data type" findings meaningful.
-4. **Rules as pluggable classes.** Each rule is a small `QualityRule` subclass returning `RuleResult`s.
-   The engine isolates failures: a rule that raises an exception becomes a `skipped` result and is logged,
-   and the rest of the report is still produced.
-5. **Explainable scoring over clever scoring.** A simple severity-penalty model with recorded weights and
-   per-check scores, so anyone can recompute the score by hand. Thresholds are configuration, not code.
-6. **Typed dataclasses + `to_builtin`.** Every result serialises to JSON, ready for the FastAPI layer,
-   SQLite persistence and LLM prompts in later milestones.
-7. **Secrets via environment only.** `Settings` reads `GROQ_API_KEY` from env / `.env` as a `SecretStr`.
+DataSentinel AI is built around one central principle:
+
+> **AI should make data engineering more intelligent, not less accountable.**
+
+By combining deterministic data processing, evidence-grounded reasoning, controlled execution and human oversight, the platform explores how agentic AI can improve the reliability and maintainability of modern data pipelines.
 
 ---
 
-## Configuration
+## Author
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `DATASENTINEL_MAX_UPLOAD_SIZE_MB` | `200` | Ingestion size limit (also set `server.maxUploadSize` in `.streamlit/config.toml`) |
-| `DATASENTINEL_LOG_LEVEL` | `INFO` | Log level for the `datasentinel` logger |
-| `GROQ_API_KEY` | — | Reserved for Milestone 2 |
+**Sinon Rodrigues**
 
-## Known limitations (Milestone 1)
-- Files are read fully into memory with pandas. Very large files will need the DuckDB/PySpark backends
-  planned for later milestones.
-- Excel, Parquet and UTF-16 files are not supported yet.
-- Composite key search is limited to column pairs among the first 20 eligible columns.
-- Out-of-range dates beyond pandas' nanosecond bounds (after 2262) are reported as unparseable rather than as too far in the future.
-- No persistence yet. Reports can be downloaded but are not stored in SQLite.
+- GitHub: [@Sinon1310](https://github.com/Sinon1310)
+
+---
+
+*Built with Python, LangGraph and a focus on trustworthy AI-powered data engineering.*
