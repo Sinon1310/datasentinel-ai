@@ -22,6 +22,8 @@ from pandas.api.types import (
     is_float_dtype,
     is_integer_dtype,
     is_numeric_dtype,
+    is_object_dtype,
+    is_string_dtype,
 )
 
 from datasentinel.schema.models import ColumnSchema, PrimaryKeyCandidate, SchemaReport, SemanticType
@@ -93,7 +95,8 @@ class SchemaInferrer:
             elif column.semantic_type == SemanticType.BOOLEAN:
                 typed[column.name] = parse_boolean(series)
             elif column.semantic_type in (SemanticType.CATEGORICAL, SemanticType.TEXT, SemanticType.EMPTY):
-                if series.dtype == object:
+                # pandas >= 3 loads text as the "str" dtype rather than object; handle both.
+                if is_object_dtype(series.dtype) or is_string_dtype(series.dtype):
                     typed[column.name] = series.mask(missing_mask(series))
         return typed
 

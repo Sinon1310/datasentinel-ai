@@ -68,6 +68,14 @@ def test_categorical_cardinality_and_top_values() -> None:
     assert 0 < cat.normalized_entropy < 1
 
 
+def test_blank_strings_excluded_from_categorical_stats() -> None:
+    # Regression: pandas >= 3 stores text as the "str" dtype; blanks must still be treated as missing.
+    df = pd.DataFrame({"region": ["N", "S", "   ", "N", "E", "S", "N", "  "]})
+    cat = _profile(df).columns["region"].categorical
+    assert cat.cardinality == 3
+    assert "   " not in [v.value for v in cat.top_values]
+
+
 def test_unique_and_constant_flags() -> None:
     profile = _profile(pd.DataFrame({"id": [1, 2, 3], "k": ["x", "x", "x"]}))
     assert profile.columns["id"].is_unique and not profile.columns["id"].is_constant

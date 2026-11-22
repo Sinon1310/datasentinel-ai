@@ -4,39 +4,50 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "datasentinel-ai"
-version = "0.1.0"
+version = "0.2.0"
 description = "Agentic AI Data Engineering and Pipeline Observability Platform"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 dependencies = [
-    "pandas>=2.0",
-    "numpy>=1.24",
-    "pydantic>=2.5",
-    "pydantic-settings>=2.1",
+    "pandas>=2.2",
+    "numpy>=1.26",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
     "python-dotenv>=1.0",
-    "streamlit>=1.38",
+    "streamlit>=1.40",
     "plotly>=5.19",
+    "duckdb>=1.1",
+    "sqlglot>=25.0",
 ]
 
 [project.optional-dependencies]
+agents = [
+    "langchain-core>=1.0",
+    "langchain-groq>=1.0",
+    "langgraph>=1.0",
+    "langgraph-checkpoint-sqlite>=3.0",
+    "groq>=1.0",
+]
 dev = ["pytest>=8.0"]
-# Planned stack for later milestones; not imported by Milestone 1 code.
+# Planned stack for later milestones; not imported yet.
 platform = [
-    "langchain>=0.3",
-    "langchain-groq>=0.3",
-    "langgraph>=0.6",
-    "groq>=0.30",
+    "langchain>=1.0",
     "fastapi>=0.115",
     "uvicorn>=0.30",
-    "duckdb>=1.1",
     "pyspark>=3.5",
     "chromadb>=0.5",
 ]
 
 [tool.setuptools.packages.find]
-include = ["datasentinel*", "app*"]
+include = ["datasentinel*", "datasentinel_agents*", "app*"]
+
+[tool.setuptools.package-data]
+datasentinel_agents = ["prompts/*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-addopts = "-ra"
+addopts = "-ra -m 'not live'"
+markers = [
+    "live: calls the real Groq API (requires GROQ_API_KEY); run with -m live",
+]

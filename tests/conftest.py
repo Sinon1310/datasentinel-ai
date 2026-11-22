@@ -24,6 +24,26 @@ CLEAN_CSV = """order_id,customer,amount,order_date,is_active,category
 """
 
 
+LIVE_CALLS_DISABLED = "Live Groq API calls are disabled in the offline test suite (use -m live)."
+
+
+@pytest.fixture(autouse=True)
+def _block_live_llm_calls(request, monkeypatch):
+    """Guarantee the offline suite never reaches the Groq API or consumes tokens, even if a key is configured."""
+    if request.node.get_closest_marker("live"):
+        return
+    try:
+        from groq.resources.chat import completions
+    except ImportError:  # agent extras not installed
+        return
+
+    def _blocked(*args, **kwargs):
+        raise RuntimeError(LIVE_CALLS_DISABLED)
+
+    monkeypatch.setattr(completions.Completions, "create", _blocked)
+    monkeypatch.setattr(completions.AsyncCompletions, "create", _blocked)
+
+
 @pytest.fixture
 def loader() -> DatasetLoader:
     """A loader with a 1 MB size limit."""
