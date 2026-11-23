@@ -32,3 +32,18 @@ class DatasetParseError(IngestionError):
 
 class SchemaContractError(DataSentinelError):
     """A user-supplied schema contract (expected schema) is invalid."""
+
+
+class QualityGateError(DataSentinelError):
+    """A dataset failed a pipeline quality gate (a failed CRITICAL check or a score below the minimum).
+
+    ``gate_result`` holds the deterministic gate evaluation that caused the failure.
+    """
+
+    def __init__(self, message: str, gate_result: object = None) -> None:
+        super().__init__(message)
+        self.gate_result = gate_result
+
+
+class TransformationError(DataSentinelError):
+    """A pipeline transformation step failed."""

@@ -42,3 +42,22 @@ def test_no_agent_module_executes_generated_code() -> None:
         for node in ast.walk(tree):
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
                 assert node.func.id not in {"exec", "eval", "compile"}, f"{path}: {node.func.id}() is forbidden"
+
+
+def test_ui_has_no_direct_persistence_or_execution_access() -> None:
+    """The UI reaches data only through services/contracts: no raw SQLite, no observability writers,
+    no direct execution of remediation SQL (approval-gated execution stays in the agent service)."""
+    forbidden_modules = {"sqlite3", "duckdb"}
+    forbidden_names = ("PipelineTracker", "ObservabilityStore", "execute_approved_fixes", "DuckDBSandbox", "SqliteSaver")
+    offenders = []
+    for path in (ROOT / "app").rglob("*.py"):
+        text = path.read_text()
+        bad = (_imports(path) & forbidden_modules) | {n for n in forbidden_names if n in text}
+        if bad:
+            offenders.append((str(path.relative_to(ROOT)), sorted(bad)))
+    assert offenders == [], offenders
+
+
+def test_observability_ui_contracts_are_independent_of_agents_and_engine_writers() -> None:
+    for path in (ROOT / "app" / "observability").rglob("*.py"):
+        assert not ({"datasentinel_agents", "langchain", "langgraph", "groq"} & _imports(path)), path

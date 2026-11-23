@@ -50,6 +50,19 @@ class Settings(BaseSettings):
     # Local persistence for investigation runs (datasets, checkpoints, audit logs).
     data_dir: Path = Path(".datasentinel")
 
+    # Pipeline observability (Milestone 3). Database file names live inside ``data_dir``; the synthetic
+    # demo history is a separate file so it can never mix with (or be impossible to remove from) real history.
+    observability_db: str = "observability.sqlite"
+    observability_demo_db: str = "observability_demo.sqlite"
+    # A RUNNING pipeline run with no heartbeat for longer than this is *displayed* as stale (never mutated).
+    pipeline_stale_after_seconds: int = Field(default=900, gt=0)
+    # Minimum spacing between persisted heartbeats from one tracked run (write throttling).
+    pipeline_heartbeat_min_interval_seconds: int = Field(default=15, gt=0)
+    # Internal pipeline quality gate: fail on any failed CRITICAL check, or a score below the minimum.
+    quality_gate_min_score: float = Field(default=60.0, ge=0.0, le=100.0)
+    quality_gate_fail_on_critical: bool = True
+    quality_gate_fail_when_unscored: bool = True
+
     @field_validator("groq_model", mode="before")
     @classmethod
     def _blank_model_uses_default(cls, value: object) -> object:
@@ -57,6 +70,26 @@ class Settings(BaseSettings):
         if value is None or (isinstance(value, str) and not value.strip()):
             return DEFAULT_GROQ_MODEL
         return value.strip() if isinstance(value, str) else value
+
+    @field_validator("observability_db", "observability_demo_db")
+    @classmethod
+    def _plain_database_file_name(cls, value: str) -> str:
+        """Observability databases are plain file names inside ``data_dir`` (no paths, no URIs)."""
+        name = str(value).strip()
+        if (not name or name in {".", ".."} or "/" in name or "\\" in name or ":" in name
+                or name.startswith(".") or any(ord(ch) < 32 for ch in name)):
+            raise ValueError("must be a plain file name inside data_dir (no directories, URIs or hidden names)")
+        return name
+
+    @property
+    def observability_db_path(self) -> Path:
+        """Path of the real pipeline observability database."""
+        return self.data_dir / self.observability_db
+
+    @property
+    def observability_demo_db_path(self) -> Path:
+        """Path of the synthetic demo observability database."""
+        return self.data_dir / self.observability_demo_db
 
     @property
     def max_upload_size_bytes(self) -> int:

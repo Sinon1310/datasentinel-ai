@@ -37,7 +37,9 @@ def ui_env(monkeypatch, settings):
 
 def test_tab_explains_missing_api_key(ui_env) -> None:
     ui_env(with_key=False)
-    at = AppTest.from_file(APP, default_timeout=120).run()
+    at = AppTest.from_file(APP, default_timeout=120)
+    at.query_params["section"] = "investigation"  # sections are selected via the sidebar navigation
+    at.run()
     at.selectbox(key="sample_choice").select("Customer orders (CSV)").run()
     assert not at.exception
     assert any("GROQ_API_KEY" in w.value for w in at.warning)
@@ -55,7 +57,9 @@ def test_missing_key_setup_overrides_a_local_env_file(ui_env, monkeypatch, tmp_p
 
 def test_start_controls_require_consent_for_masked_samples(ui_env) -> None:
     ui_env(with_key=True)
-    at = AppTest.from_file(APP, default_timeout=120).run()
+    at = AppTest.from_file(APP, default_timeout=120)
+    at.query_params["section"] = "investigation"  # sections are selected via the sidebar navigation
+    at.run()
     at.selectbox(key="sample_choice").select("Customer orders (CSV)").run()
     assert not at.exception
     assert at.radio(key="inv_privacy").value == "metadata_only"
@@ -77,7 +81,9 @@ def test_resume_after_restart_and_approve_through_ui(ui_env, make_service, sampl
     service.close()
 
     ui_env(with_key=True)
-    at = AppTest.from_file(APP, default_timeout=180).run()
+    at = AppTest.from_file(APP, default_timeout=180)
+    at.query_params["section"] = "investigation"  # sections are selected via the sidebar navigation
+    at.run()
     at.selectbox(key="inv_pick").select(run_id).run()
     at.button(key="inv_open").click().run()
     assert not at.exception, at.exception
@@ -103,7 +109,9 @@ def test_stale_decision_submission_shows_notice_not_exception(ui_env, make_servi
     run_id = service.create_run(sample_bytes, "customer_orders.csv").run_id
     snap = service.start(run_id)
     ui_env(with_key=True)
-    at = AppTest.from_file(APP, default_timeout=180).run()
+    at = AppTest.from_file(APP, default_timeout=180)
+    at.query_params["section"] = "investigation"  # sections are selected via the sidebar navigation
+    at.run()
     at.selectbox(key="inv_pick").select(run_id).run()
     at.button(key="inv_open").click().run()
     at.text_input(key="inv_reviewer").input("alice")

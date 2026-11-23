@@ -1,4 +1,4 @@
-"""AI Investigation tab: start runs, follow progress, review evidence and approve fixes.
+"""AI Investigation workspace: start runs, follow progress, review evidence and approve fixes.
 
 The UI never calls an LLM or executes SQL itself. It talks only to
 :class:`datasentinel_agents.service.InvestigationService`. Dataset-derived tokens are
@@ -7,6 +7,7 @@ rehydrated to real values here, for local display only.
 
 from __future__ import annotations
 
+import html
 import json
 from typing import Any
 
@@ -21,6 +22,9 @@ from datasentinel_agents.llm import LLMConfigurationError
 from datasentinel_agents.service import InvestigationService, RunSnapshot
 from datasentinel_agents.services import Services
 
+from app.components.ui import card, empty_state, status_text, badge_markdown, page_header, section, status_badge
+from app.components.workflow import derive_stages
+
 NODE_LABELS = {
     "prepare_context": "Preparing deterministic context",
     "data_investigator": "Data Investigator",
@@ -34,8 +38,10 @@ NODE_LABELS = {
     "verify": "Verifying remediated data",
     "report": "Assembling report",
 }
-STATUS_BADGES = {"awaiting_approval": "🟠 Awaiting approval", "completed": "✅ Completed",
-                 "incomplete": "⚠️ Incomplete (retryable)", "failed": "❌ Failed", "not_started": "⏳ Not started"}
+STATUS_BADGES = {"awaiting_approval": "Awaiting approval", "completed": "Completed",
+                 "incomplete": "Incomplete (retryable)", "failed": "Failed", "not_started": "Not started"}
+STAGE_LABELS = {"done": "done", "skipped": "skipped", "failed": "failed", "degraded": "degraded",
+                "waiting": "waiting", "interrupted": "interrupted", "not_reached": "not reached"}
 
 
 @st.cache_resource(show_spinner=False)
@@ -69,22 +75,31 @@ def _rehydrate(service: InvestigationService, run_id: str, text: Any) -> Any:
 
 
 def render_investigation(file: tuple[bytes, str] | None, baseline_text: str | None, iqr: float, null_tol: float) -> None:
-    """Render the AI Investigation tab."""
+    """Render the AI Investigation section."""
+    page_header("AI Investigation", "Agents explain quality issues using cited evidence, separate confirmed facts "
+                "from hypotheses and propose fixes that run only after human approval.", eyebrow="Agents",
+                accent="violet",
+                context=[f"Dataset · {file[1]}"] if file else [])
     service = get_service()
     if service is None:
         st.warning("AI investigation needs a Groq API key. Set `GROQ_API_KEY` in your environment or `.env` file, "
                    "then restart the app.")
-        st.caption("The deterministic analysis in the other tabs works without any API key.")
+        empty_state("AI investigation is not configured",
+                    "Add a Groq API key to let agents trace root causes and propose reviewable fixes.",
+                    why="The deterministic analysis in the other sections works without any API key, and by default "
+                        "only metadata — never raw values — is sent to the model.",
+                    steps=["Add GROQ_API_KEY to your .env file.", "Restart the app and open this section again."],
+                    icon="key", tone="amber")
         return
 
     notice = st.session_state.pop("inv_notice", None)
     if notice:
         st.error(notice)
 
-    left, right = st.columns([1, 1], gap="large")
-    with left:
+    left, right = st.columns([1, 1], gap="medium")
+    with left, card("inv_1"):
         _render_start(service, file, baseline_text, iqr, null_tol)
-    with right:
+    with right, card("inv_2"):
         _render_run_picker(service)
 
     run_id = st.session_state.get("active_run")
@@ -97,7 +112,7 @@ def render_investigation(file: tuple[bytes, str] | None, baseline_text: str | No
 
 
 def _render_start(service: InvestigationService, file, baseline_text, iqr, null_tol) -> None:
-    st.subheader("Start an investigation")
+    section("Start an investigation")
     if file is None:
         st.info("Load a dataset in the sidebar to investigate it.")
         return
@@ -111,7 +126,8 @@ def _render_start(service: InvestigationService, file, baseline_text, iqr, null_
                               key="inv_consent")
     else:
         st.caption("Only schema, aggregates, counts, value shapes and tokenised labels are sent. No raw values.")
-    if st.button("🔎 Run AI investigation", type="primary", disabled=not consent, key="inv_start"):
+    if st.button("Run AI investigation", type="primary", icon=":material/play_arrow:", disabled=not consent,
+                 key="inv_start"):
         try:
             manifest = service.create_run(file[0], file[1], baseline_text=baseline_text, privacy_mode=mode,
                                           iqr_multiplier=iqr, max_null_pct=null_tol)
@@ -142,10 +158,12 @@ def _stream_with_progress(action) -> RunSnapshot | None:
 
 
 def _render_run_picker(service: InvestigationService) -> None:
-    st.subheader("Previous runs")
+    section("Previous runs", "Persisted locally; resumable after restarts.")
     runs = service.list_runs()
     if not runs:
-        st.caption("No runs yet. Runs are persisted locally and survive restarts.")
+        empty_state("No investigation history yet", "Runs you start appear here and can be reopened later.",
+                    why="Each run is checkpointed locally, so it survives restarts and can wait for approval.",
+                    icon="history", tone="slate")
         return
     labels = {m.run_id: f"{m.created_at} · {m.filename} · {m.privacy_mode}" for m in runs}
     choice = st.selectbox("Open a run", ["—", *labels], format_func=lambda r: labels.get(r, r), key="inv_pick")
@@ -161,8 +179,10 @@ def _render_run(service: InvestigationService, run_id: str) -> None:
     snapshot = service.snapshot(run_id)
     values = snapshot.values
     manifest = service.services.store.load_manifest(run_id)
-    st.markdown(f"### Run `{run_id[:12]}…` — {STATUS_BADGES.get(snapshot.status, snapshot.status)}")
-    st.caption(f"{manifest.filename} · privacy: {manifest.privacy_mode} · created {manifest.created_at}")
+    st.markdown(f"### Investigation `{run_id[:12]}…` {badge_markdown(STATUS_BADGES.get(snapshot.status, snapshot.status), snapshot.status)}")
+    st.caption(f"Investigation ID {run_id} · dataset {manifest.filename} · privacy {manifest.privacy_mode} · "
+               f"created {manifest.created_at}")
+    _render_workflow(snapshot)
 
     if snapshot.status == "incomplete":
         st.warning("This run stopped before finishing (for example a Groq outage). It can continue from its last checkpoint.")
@@ -185,6 +205,7 @@ def _render_run(service: InvestigationService, run_id: str) -> None:
         c4.metric("Grounding notes", sum(1 for e in values.get("errors") or [] if e.kind == "grounding"), border=True)
 
     tabs = st.tabs(["Findings", "Root cause", "Schema drift", "Remediation", "Evidence", "Audit & diagnostics"])
+
     with tabs[0]:
         _render_findings(service, run_id, values)
     with tabs[1]:
@@ -199,15 +220,37 @@ def _render_run(service: InvestigationService, run_id: str) -> None:
         _render_audit(service, run_id, values)
 
 
+def _render_workflow(snapshot: RunSnapshot) -> None:
+    """Workflow stages derived from the checkpointed state only (no fabricated progress)."""
+    stages = derive_stages(snapshot.values, snapshot.status, snapshot.next_nodes)
+    with card("inv_3"):
+        section("Workflow", "Derived from the persisted workflow state. Routing is part of “Prepare & route”.")
+        steps = []
+        for index, stage in enumerate(stages, start=1):
+            glyph = {"done": "✓", "failed": "✕", "waiting": "◷", "degraded": "!", "interrupted": "!"}.get(
+                stage.status, str(index))
+            steps.append(f'<div class="ds-step {stage.status}" title="{html.escape(stage.detail)}">'
+                         f'<span class="ds-step-n">{glyph}</span><span>{html.escape(stage.label)}'
+                         f'<br><span class="ds-step-s">{STAGE_LABELS[stage.status]}</span></span></div>')
+        st.markdown('<div class="ds-flow">' + '<span class="ds-step-arrow">›</span>'.join(steps) + "</div>",
+                    unsafe_allow_html=True)
+        details = [f"{s.label}: {s.detail}" for s in stages if s.detail]
+        if details:
+            st.caption(" · ".join(details))
+
+
 def _render_findings(service, run_id, values) -> None:
     report = values.get("investigator_report")
     if report is None:
         st.info("No investigator findings (no failed checks, or the agent did not finish).")
         return
     st.markdown(_rehydrate(service, run_id, report.summary))
-    for finding in report.findings:
-        badge = "🟢 confirmed" if finding.status == "confirmed" else "🟡 hypothesis"
-        with st.expander(f"{finding.finding_id} · {badge} · [{finding.severity}] {_rehydrate(service, run_id, finding.title)}"):
+    for index, finding in enumerate(report.findings):
+        # Confirmed (green accent) vs hypothesis (amber accent): the label always states which.
+        with st.container(border=True, key=f"finding_{finding.status}_{index}"):
+            st.markdown(f"**{finding.finding_id} · {_rehydrate(service, run_id, finding.title)}**  \n"
+                        f"{badge_markdown('Confirmed by evidence' if finding.status == 'confirmed' else 'Hypothesis', finding.status)} "
+                        f"{badge_markdown(finding.severity.capitalize(), finding.severity)}")
             st.markdown(_rehydrate(service, run_id, finding.description))
             if finding.pattern:
                 st.markdown(f"**Pattern:** {_rehydrate(service, run_id, finding.pattern)}")
@@ -230,7 +273,7 @@ def _render_root_cause(service, run_id, values) -> None:
     st.markdown(_rehydrate(service, run_id, report.summary))
     st.markdown("#### Confirmed facts")
     for fact in report.confirmed_facts:
-        st.markdown(f"- 🟢 {_rehydrate(service, run_id, fact.statement)} — evidence: "
+        st.markdown(f"- {badge_markdown('Confirmed', 'confirmed')} {_rehydrate(service, run_id, fact.statement)} — evidence: "
                     f"{', '.join(f'`{e}`' for e in fact.supporting_evidence_ids)}")
     if not report.confirmed_facts:
         st.caption("None.")
@@ -247,7 +290,8 @@ def _render_root_cause(service, run_id, values) -> None:
     if report.unverified_claims:
         st.markdown("#### Claims downgraded by grounding")
         for claim in report.unverified_claims:
-            st.markdown(f"- 🟡 {_rehydrate(service, run_id, claim.statement)} — {'; '.join(claim.grounding_notes)}")
+            st.markdown(f"- {badge_markdown('Unverified', 'hypothesis')} {_rehydrate(service, run_id, claim.statement)} — "
+                        f"{'; '.join(claim.grounding_notes)}")
     impact = report.impact
     st.markdown(f"#### Impact · blast radius **{impact.blast_radius}**")
     st.markdown("\n".join(f"- {_rehydrate(service, run_id, r)}" for r in impact.downstream_risks) or "—")
@@ -280,15 +324,17 @@ def _render_remediation(service, run_id, snapshot: RunSnapshot) -> None:
     else:
         for fix in plan.fixes:
             v = validations.get(fix.fix_id)
-            with st.expander(f"{fix.fix_id} · {fix.title} · {'✅ valid' if v and v.approvable else '⛔ blocked'}"):
+            with st.expander(f"{fix.fix_id} · {fix.title} · {'passed validation' if v and v.approvable else 'blocked by validation'}"):
                 _fix_details(fix, v)
     execution = values.get("execution")
     if execution:
         st.markdown("#### Execution")
-        st.dataframe(pd.DataFrame([r.model_dump() for r in execution.records]), hide_index=True)
+        st.dataframe(pd.DataFrame([{"fix": r.fix_id, "status": status_text(r.status), "reason": r.reason,
+                                    "rows before": r.rows_before, "rows after": r.rows_after, "SQL SHA-256": r.sql_sha256}
+                                   for r in execution.records]), hide_index=True)
         if execution.artifact_name:
             df = service.services.store.load_artifact(run_id, execution.artifact_name)
-            st.download_button("⬇️ Download remediated dataset (CSV)", df.to_csv(index=False),
+            st.download_button("Download remediated dataset (CSV)", df.to_csv(index=False), icon=":material/download:",
                                file_name=f"{execution.artifact_name}_{run_id[:8]}.csv", mime="text/csv")
             st.caption("The original dataset is unchanged; this is a new, separate artefact.")
     verification = values.get("verification")
@@ -334,12 +380,13 @@ def _fix_details(fix, validation) -> None:
 def _render_approval_form(service, run_id, snapshot: RunSnapshot) -> None:
     payload = snapshot.pending_approval or {}
     fixes = payload.get("fixes", [])
-    st.warning("Review each fix. Nothing runs until you approve it, and approval is bound to the exact SQL shown.")
     plan = snapshot.values["remediation_plan"]
     by_id = {f.fix_id: f for f in plan.fixes}
     validations = {v.fix_id: v for v in snapshot.values.get("fix_validations") or []}
     blocked = [f for f in plan.fixes if f.fix_id not in {x["fix_id"] for x in fixes}]
-    with st.form(key=f"approval_{run_id}"):
+    with st.container(border=True, key="approval_panel"), st.form(key=f"approval_{run_id}", border=False):
+        st.markdown("**Human approval required** — nothing runs until you approve it. Each decision is recorded with your name and bound to the "
+                    "SQL hash shown.")
         reviewer = st.text_input("Reviewer name (required, recorded in the audit trail)", key="inv_reviewer")
         decisions = []
         for item in fixes:

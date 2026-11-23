@@ -1,9 +1,46 @@
 [server]
 maxUploadSize = 200
 
-[theme]
-primaryColor = "#2a78d6"
-font = "sans serif"
+[client]
+# The app renders a single custom sidebar navigation (app/components/shell.py) covering every section,
+# so Streamlit's automatic page list is hidden to avoid two navigation systems.
+showSidebarNavigation = false
+toolbarMode = "minimal"
 
 [browser]
 gatherUsageStats = false
+
+# Hybrid enterprise theme: light workspace, dark navigation.
+[theme]
+base = "light"
+primaryColor = "#2563EB"
+backgroundColor = "#F8FAFC"
+secondaryBackgroundColor = "#F1F5F9"
+textColor = "#0F172A"
+borderColor = "#E2E8F0"
+linkColor = "#2563EB"
+baseRadius = "0.5rem"
+buttonRadius = "0.375rem"
+showWidgetBorder = true
+showSidebarBorder = false
+baseFontSize = 15
+headingFontWeights = [700, 600, 600, 600, 600, 600]
+headingFontSizes = ["1.6rem", "1.25rem", "1.05rem", "0.95rem", "0.9rem", "0.85rem"]
+metricValueFontSize = "1.6rem"
+metricValueFontWeight = 600
+dataframeHeaderBackgroundColor = "#F1F5F9"
+dataframeBorderColor = "#E2E8F0"
+greenColor = "#16A34A"
+redColor = "#DC2626"
+orangeColor = "#D97706"
+blueColor = "#2563EB"
+violetColor = "#7C3AED"
+
+[theme.sidebar]
+backgroundColor = "#111827"
+secondaryBackgroundColor = "#1F2937"
+textColor = "#F9FAFB"
+borderColor = "#374151"
+primaryColor = "#3B82F6"
+linkColor = "#93C5FD"
+codeBackgroundColor = "#1F2937"

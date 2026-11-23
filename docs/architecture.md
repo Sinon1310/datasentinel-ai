@@ -22,7 +22,7 @@ imports no LLM or UI code, and `tests/test_architecture.py` enforces this. Targe
 ```
                  ┌──────────────────────────────────────────────┐
   CSV / JSON ──▶ │  app/streamlit_app.py  (presentation layer)  │
-  (upload or     │  sidebar · caching · error display · 5 tabs  │
+  (upload or     │  sidebar nav · caching · errors · sections   │
    sample)       └───────────────────────┬──────────────────────┘
                                          │ bytes, filename, settings
                                          ▼
@@ -55,7 +55,11 @@ datasentinel/
 └── utils/               parsing.py (shared coercion), serialization.py (to_builtin)
 app/
 ├── streamlit_app.py     entry point
-└── components/          styles.py, charts.py (pure Plotly builders), sections.py (tab renderers)
+├── components/          shell (navigation), styles (tokens/CSS), ui (KPI cards, badges, states), dataset (session
+│                        context + cached analysis), charts (pure Plotly builders), workflow, investigation
+├── views/               overview, quality, schema, profiling, observability (one renderer per section)
+├── observability/       typed UI contracts, not-connected live source, in-memory synthetic demo backend
+└── pages/               1_Pipeline_Observability.py
 ```
 
 **Dependency direction:** `app → datasentinel.pipeline → {ingestion, schema, profiling, quality} → utils`.
@@ -181,12 +185,23 @@ overall score.
 
 ### 4.6 Presentation — Streamlit
 
-- `streamlit_app.py`
-  - Bootstraps `sys.path`, configures logging and renders the sidebar (upload, samples, contract, settings).
-  - Calls the cached `run_analysis()`, an `st.cache_data` keyed on file bytes, contract text and settings.
-  - Maps exceptions to user-facing messages. Unexpected errors are logged, never shown as a traceback.
-- `components/charts.py`: pure functions that turn data into a Plotly figure. They use a validated colour palette, with reserved status colours always paired with text labels.
-- `components/sections.py`: one renderer per tab (Overview, Schema Explorer, Data Quality, Profiling, Data Preview).
+- **Navigation:** one sidebar of `st.page_link` items (`components/shell.py`). The five dataset sections live in
+  `streamlit_app.py` and are selected with `?section=` (overview, quality, schema, profiling, investigation);
+  Pipeline Observability is `pages/1_Pipeline_Observability.py`. Streamlit's automatic page list is hidden
+  (`.streamlit/config.toml`), so there is a single navigation system.
+- **Theme:** native Streamlit theming in `.streamlit/config.toml` (light workspace, dark `[theme.sidebar]`);
+  `components/styles.py` holds the same tokens for charts plus minimal CSS keyed on stable `data-testid`s.
+- `streamlit_app.py` renders the shell and routes to `views/*`. The active dataset is kept in session state
+  (`components/dataset.py`) so it survives page changes; analysis is the cached `run_analysis()`
+  (`st.cache_data`, keyed on file bytes, baseline text and settings). Errors become explanations, never tracebacks.
+- `components/charts.py`: pure functions that turn prepared data into Plotly figures; reserved status colours are
+  always paired with text labels.
+- `views/*`: one renderer per section, each with small pure view-model helpers (unit-tested).
+- `components/investigation.py` + `components/workflow.py`: the AI Investigation workspace. Stage statuses are derived
+  only from checkpointed workflow state; approvals go through `InvestigationService.resume`.
+- `observability/`: the UI integration boundary for Milestone 3 — `ObservabilityDataSource` (read) and
+  `ObservabilityCommands` (record-only retry request, cancel PENDING). Until the backend exists, the live source is
+  `UnavailableBackend`; `DemoBackend` provides deterministic, clearly labelled synthetic data in memory only.
 
 ## 5. Cross-cutting concerns
 
